@@ -1,14 +1,14 @@
 {
-    "bot_token": "<PUT YOUR TOKEN>",
-    "bot_prefix": "*",
-    "is_maintenance_status": false,
-    "owner_id": "",
+    "bot_token": "${BOT_TOKEN}",
+    "bot_prefix": "ag!",
+    "is_maintenance_status": true,
+    "owner_id": "744344345167134800",
 
-    "message_title": "MCStatusBot",
+    "message_title": "AquaGods Status",
     "message_description": "_Here you can find the status of the servers._",
 
-    "message_field": "**🌐 For more information visit the server status site:**",
-    "message_field_link": "https://status.example.com",
+    "message_field": "**🌐**",
+    "message_field_link": "*",
 
     "message_footer": "🕐 Last update on {date} at {time}",
 
@@ -23,20 +23,20 @@
 
     "servers_to_ping": [
         {
-            "server_name": "SottoSopra Vanilla",
-            "server_ip": "mc.sottosopravvivenza.it",
-            "port": "25565",
+            "server_name": "AquaGods Lobby",
+            "server_ip": "80.240.87.3",
+            "port": "25561",
             "is_bedrock": false,
             "count_on_presence": true,
-            "is_maintenance": false
+            "is_maintenance": true
         },
         {
-            "server_name": "NetherGames Bedrock",
-            "server_ip": "play.nethergames.org",
-            "port": "19132",
-            "is_bedrock": true,
-            "count_on_presence": false,
-            "is_maintenance": false
+            "server_name": "SkyBlock",
+            "server_ip": "80.240.87.3",
+            "port": "25563",
+            "is_bedrock": false,
+            "count_on_presence": true,
+            "is_maintenance": true
         }
     ]
 }
