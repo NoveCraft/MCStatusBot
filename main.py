@@ -8,7 +8,7 @@ from nextcord.ext import commands
 from mcstatus import JavaServer, BedrockServer
 from colorama import init, Fore, Style
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiohttp import web  # Se importa aiohttp para el servidor web
+from aiohttp import web
 
 # -------------------------------
 # Función para procesar variables de entorno en la configuración
@@ -38,7 +38,10 @@ client = commands.Bot(
 
 bot_token = config['bot_token']
 count_all_servers = {}
-scheduler = AsyncIOScheduler()  # Se define pero se iniciará dentro de on_ready()
+scheduler = AsyncIOScheduler()  # Se definirá e iniciará en on_ready()
+
+# Bandera global para controlar el uso único del comando
+status_created = False
 
 # -------------------------------
 # Función del servidor web simple
@@ -75,18 +78,14 @@ async def on_ready():
     )
 
     # Validar configuraciones
-    server_id = client.get_guild(int(config['server_id']))
-    if server_id is None:
+    server = client.get_guild(int(config['server_id']))
+    if server is None:
         print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] ERROR: El server_id en config.json es inválido.")
         return
 
-    check_channel_status = server_id.get_channel(int(config['channel_status_id']))
+    check_channel_status = server.get_channel(int(config['channel_status_id']))
     if check_channel_status is None:
         print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] ERROR: El channel_status_id en config.json es inválido.")
-
-    owner_id = client.get_user(int(config['owner_id']))
-    if owner_id is None:
-        print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] ERROR: El owner_id en config.json es inválido.")
 
     # Cargar Cogs (módulos adicionales)
     for filename in os.listdir('./cogs'):
@@ -106,7 +105,32 @@ async def on_ready():
     print(Style.NORMAL + Fore.GREEN + "Soporte: " + Fore.RED + "https://discord.superkali.me")
     print(Style.NORMAL + Fore.LIGHTMAGENTA_EX + "╚═══════════════════╝")
 
+# -------------------------------
+# Comando para crear el mensaje de estado (solo se puede usar una vez)
+@client.command(name="createstatusmsg")
+async def create_status_msg(ctx):
+    global status_created
+    if status_created:
+        await ctx.send("Este comando ya se ha usado y solo puede usarse una vez.")
+        return
 
+    # Enviar un mensaje inicial que luego actualizará el scheduler
+    message = await ctx.send("Mensaje de estado creado. Este mensaje se actualizará automáticamente.")
+    
+    # Guardar el ID del mensaje en data.json para que update_servers_status lo use
+    try:
+        with open('data.json', 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+    data['pinger_message_id'] = message.id
+    with open('data.json', 'w') as f:
+        json.dump(data, f)
+
+    status_created = True
+    await ctx.send("Mensaje de estado configurado correctamente. Este comando no se podrá volver a usar.")
+
+# -------------------------------
 async def update_servers_status():
     if not config["is_maintenance_status"]:
         server = client.get_guild(int(config['server_id']))
@@ -134,7 +158,7 @@ async def update_servers_status():
                     await pinger_message.edit(embed=checking)
                 except nextcord.errors.NotFound:
                     print(Style.NORMAL + Fore.RED + "[MCStatusBot] " + Fore.CYAN +
-                          f"El bot no está configurado. Usa {config['bot_prefix']}createstatusmsg en el canal de texto.")
+                          f"El mensaje de estado no está configurado. Usa {config['bot_prefix']}createstatusmsg en el canal de texto.")
                     return
 
                 for server_info in data_list["servers_to_ping"]:
@@ -158,7 +182,7 @@ async def update_servers_status():
                                 "count_on_presence": server_info["count_on_presence"],
                                 "status": True
                             }
-                        except Exception as e:
+                        except Exception:
                             txt.add_field(name=server_info['server_name'], value="🔴 OFFLINE", inline=False)
                             count_all_servers[server_info['server_name']] = {
                                 "online": 0,
@@ -189,7 +213,7 @@ async def update_servers_status():
             activity=nextcord.Activity(type=nextcord.ActivityType.playing, name="🟠 Mantenimiento")
         )
 
-
+# -------------------------------
 async def update_presence_status():
     total_players = sum(
         int(info.get('online', 0))
@@ -205,7 +229,7 @@ async def update_presence_status():
     )
     count_all_servers.clear()
 
-
+# -------------------------------
 async def send_console_status():
     online_count = sum(1 for info in count_all_servers.values() if info.get("status", False))
     offline_count = sum(1 for info in count_all_servers.values() if not info.get("status", False))
@@ -214,5 +238,5 @@ async def send_console_status():
     print(Style.NORMAL + Fore.RED + "[MCStatusBot] " + Fore.CYAN + f"{online_count} servidores en línea")
     print(Style.NORMAL + Fore.RED + "[MCStatusBot] " + Fore.CYAN + f"{offline_count} servidores fuera de línea")
 
-
+# -------------------------------
 client.run(bot_token)
