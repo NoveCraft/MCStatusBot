@@ -8,7 +8,9 @@ from nextcord.ext import commands
 from mcstatus import JavaServer, BedrockServer
 from colorama import init, Fore, Style
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiohttp import web  # Se importa aiohttp para el servidor web
 
+# -------------------------------
 # Función para procesar variables de entorno en la configuración
 def process_env_vars(config):
     for key, value in config.items():
@@ -27,19 +29,44 @@ with open('config.json') as config_file:
     config = json.load(config_file)
 config = process_env_vars(config)
 
-client = commands.Bot(command_prefix=config["bot_prefix"], help_command=None, intents=nextcord.Intents.all())
+# -------------------------------
+client = commands.Bot(
+    command_prefix=config["bot_prefix"],
+    help_command=None,
+    intents=nextcord.Intents.all()
+)
 
 bot_token = config['bot_token']
 count_all_servers = {}
 scheduler = AsyncIOScheduler()  # Se define pero se iniciará dentro de on_ready()
 
+# -------------------------------
+# Función del servidor web simple
+async def handle_root(request):
+    return web.Response(text="¡Hola! La aplicación está corriendo.")
 
+async def start_webserver():
+    app = web.Application()
+    app.router.add_get("/", handle_root)
+    
+    # Obtiene el puerto de la variable de entorno "PORT" (usado por Render), o usa 8080 por defecto.
+    port = int(os.environ.get("PORT", 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Servidor web corriendo en el puerto {port}")
+
+# -------------------------------
 @client.event
 async def on_ready():
     global scheduler
 
     # Inicializar colores para la consola
     init(autoreset=True)
+
+    # Iniciar el servidor web en segundo plano
+    client.loop.create_task(start_webserver())
 
     # Configurar presencia del bot
     await client.change_presence(
@@ -114,12 +141,18 @@ async def update_servers_status():
                     if not server_info["is_maintenance"]:
                         try:
                             if server_info["is_bedrock"]:
-                                check = BedrockServer.lookup(f"{server_info['server_ip']}:{server_info['port']}")\
-                                    .status().players.online
+                                check = BedrockServer.lookup(
+                                    f"{server_info['server_ip']}:{server_info['port']}"
+                                ).status().players.online
                             else:
-                                check = JavaServer.lookup(f"{server_info['server_ip']}:{server_info['port']}")\
-                                    .status().players.online
-                            txt.add_field(name=server_info['server_name'], value=f"🟢 ONLINE ({check} jugadores)", inline=False)
+                                check = JavaServer.lookup(
+                                    f"{server_info['server_ip']}:{server_info['port']}"
+                                ).status().players.online
+                            txt.add_field(
+                                name=server_info['server_name'],
+                                value=f"🟢 ONLINE ({check} jugadores)",
+                                inline=False
+                            )
                             count_all_servers[server_info['server_name']] = {
                                 "online": check,
                                 "count_on_presence": server_info["count_on_presence"],
