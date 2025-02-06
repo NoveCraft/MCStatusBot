@@ -77,7 +77,6 @@ async def ensure_status_message(channel):
             print("[DEBUG] data.json está corrupto o vacío. Se reiniciará el contenido.")
             data = {}
 
-    # Si ya existe un ID y no es 0, lo usamos
     if "pinger_message_id" in data and data["pinger_message_id"] != 0:
         print(f"[DEBUG] Mensaje de estado ya existe: ID {data['pinger_message_id']}")
         return data["pinger_message_id"]
@@ -110,7 +109,6 @@ async def on_ready():
     # Iniciar el servidor web en segundo plano
     client.loop.create_task(start_webserver())
 
-    # Cambiar la presencia del bot (opcional)
     await client.change_presence(
         status=nextcord.Status.online,
         activity=nextcord.Activity(type=nextcord.ActivityType.playing, name="...loading")
@@ -134,6 +132,9 @@ async def on_ready():
     if not message_id:
         print("[ERROR] No se pudo crear o recuperar el mensaje de estado.")
         return
+
+    # Llamada inmediata para actualizar el mensaje de estado
+    await update_servers_status()
 
     # Iniciar el scheduler para actualizar el mensaje periódicamente
     if not scheduler.running:
@@ -251,10 +252,11 @@ async def update_servers_status():
                 await send_console_status()
                 await update_presence_status()
             else:
-                print(f"[ERROR] No se encontró el canal de estado.")
+                print("[ERROR] No se encontró el canal de estado.")
         else:
-            print(f"[ERROR] No se encontró el servidor de Discord configurado.")
+            print("[ERROR] No se encontró el servidor de Discord configurado.")
     else:
+        # En modo mantenimiento, se podría no actualizar el mensaje
         await client.change_presence(
             status=nextcord.Status.idle,
             activity=nextcord.Activity(type=nextcord.ActivityType.playing, name="🟠 Mantenimiento")
