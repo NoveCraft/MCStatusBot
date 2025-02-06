@@ -1,8 +1,7 @@
 {
     "bot_token": "${BOT_TOKEN}",
     "bot_prefix": "ag!",
-    "is_maintenance_status": false,
-    "owner_id": "744344345167134800",
+    "is_maintenance_status": true,
 
     "message_title": "AquaGods Status",
     "message_description": "_Here you can find the status of the servers._",
@@ -11,7 +10,6 @@
     "message_field_link": "*",
 
     "message_footer": "🕐 Last update on {date} at {time}",
-
     "message_checking_embed": "_I'm checking the status of the servers..._",
 
     "presence_name": "{players} online",
