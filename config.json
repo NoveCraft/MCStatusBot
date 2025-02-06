@@ -29,6 +29,22 @@
             "is_maintenance": false
         },
         {
+            "server_name": "BedWars",
+            "server_ip": "80.240.87.3",
+            "port": "25561",
+            "is_bedrock": false,
+            "count_on_presence": false,
+            "is_maintenance": false
+        },
+        {
+            "server_name": "KitMap",
+            "server_ip": "80.240.87.3",
+            "port": "25561",
+            "is_bedrock": false,
+            "count_on_presence": false,
+            "is_maintenance": false
+        },
+        {
             "server_name": "SkyBlock",
             "server_ip": "80.240.87.3",
             "port": "25563",
