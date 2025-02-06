@@ -29,14 +29,16 @@ config = process_env_vars(config)
 
 # -------------------------------
 client = commands.Bot(
-    command_prefix=config["bot_prefix"],
+    command_prefix=config["bot_prefix"],  # Aunque ya no se usen comandos, se requiere para instanciar el bot.
     help_command=None,
     intents=nextcord.Intents.all()
 )
 
 bot_token = config['bot_token']
 count_all_servers = {}
-scheduler = AsyncIOScheduler()  # Se definirá e iniciará en on_ready()
+scheduler = AsyncIOScheduler()  # Se iniciará en on_ready()
+
+DATA_FILE = "data.json"  # Archivo para almacenar el ID del mensaje de estado
 
 # -------------------------------
 # Servidor web simple (útil para plataformas como Render)
@@ -56,6 +58,37 @@ async def start_webserver():
     print(f"Servidor web corriendo en el puerto {port}")
 
 # -------------------------------
+async def ensure_status_message(channel):
+    """
+    Verifica si existe un mensaje de estado (almacenado en data.json).
+    Si no existe, lo crea automáticamente en el canal indicado.
+    Retorna el ID del mensaje.
+    """
+    data = {}
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
+
+    if "pinger_message_id" in data:
+        return data["pinger_message_id"]
+    else:
+        # Crear mensaje de estado inicial
+        embed = nextcord.Embed(
+            title="MCStatusBot Configured 🎉",
+            description="This message will be updated automatically with the server status.",
+            color=nextcord.Colour.blue()
+        )
+        message = await channel.send(embed=embed)
+        data["pinger_message_id"] = message.id
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f)
+        print("Mensaje de estado creado automáticamente.")
+        return message.id
+
+# -------------------------------
 @client.event
 async def on_ready():
     global scheduler
@@ -66,26 +99,30 @@ async def on_ready():
     # Iniciar el servidor web en segundo plano
     client.loop.create_task(start_webserver())
 
-    # Configurar presencia del bot
+    # Configurar presencia del bot (opcional)
     await client.change_presence(
         status=nextcord.Status.online,
         activity=nextcord.Activity(type=nextcord.ActivityType.playing, name="...loading")
     )
 
-    # Validar configuraciones (server y canal)
-    server = client.get_guild(int(config['server_id']))
-    if server is None:
+    # Validar el guild y canal según lo configurado
+    guild = client.get_guild(int(config['server_id']))
+    if guild is None:
         print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] ERROR: El server_id en config.json es inválido.")
         return
 
-    check_channel_status = server.get_channel(int(config['channel_status_id']))
-    if check_channel_status is None:
+    channel = guild.get_channel(int(config['channel_status_id']))
+    if channel is None:
         print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] ERROR: El channel_status_id en config.json es inválido.")
+        return
 
-    # Cargar todos los cogs (incluye el cog de comandos)
-    for filename in os.listdir('./cogs'):
-        if filename.endswith('.py'):
-            client.load_extension(f'cogs.{filename[:-3]}')
+    # Asegurarse de que exista el mensaje de estado; si no, se crea automáticamente.
+    await ensure_status_message(channel)
+
+    # Cargar cogs si es necesario (en este ejemplo, no usamos comandos)
+    # for filename in os.listdir('./cogs'):
+    #     if filename.endswith('.py'):
+    #         client.load_extension(f'cogs.{filename[:-3]}')
 
     # Iniciar el scheduler si aún no está corriendo
     if not scheduler.running:
@@ -102,36 +139,50 @@ async def on_ready():
 
 # -------------------------------
 async def update_servers_status():
+    # Esta función se ejecuta periódicamente para actualizar el mensaje de estado.
     if not config["is_maintenance_status"]:
-        server = client.get_guild(int(config['server_id']))
-        if server:
-            channel_message = server.get_channel(int(config['channel_status_id']))
-            if channel_message:
+        guild = client.get_guild(int(config['server_id']))
+        if guild:
+            channel = guild.get_channel(int(config['channel_status_id']))
+            if channel:
+                # Cargar el ID del mensaje de estado desde data.json
+                try:
+                    with open(DATA_FILE, "r") as f:
+                        data = json.load(f)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    print("No se encontró el archivo data.json o está corrupto.")
+                    return
+
+                if "pinger_message_id" not in data:
+                    print("El mensaje de estado no está configurado. Reiniciando proceso...")
+                    message_id = await ensure_status_message(channel)
+                else:
+                    message_id = data["pinger_message_id"]
+
                 txt = nextcord.Embed(
                     title=config['message_title'],
                     description=f"{config['message_description']}\n",
                     colour=nextcord.Colour.orange()
                 )
 
-                with open('data.json') as data_file:
-                    data = json.load(data_file)
-
-                # Cargar la configuración original para obtener la lista de servidores a pinguear
+                # Abrir la configuración original para obtener la lista de servidores
                 with open('config.json') as server_list:
                     data_list = json.load(server_list)
 
                 try:
-                    pinger_message = await channel_message.fetch_message(int(data['pinger_message_id']))
+                    pinger_message = await channel.fetch_message(int(message_id))
+                    # Mostrar embed "checking" mientras se actualiza el estado
                     checking = nextcord.Embed(
                         description=config["message_checking_embed"],
                         colour=nextcord.Colour.orange()
                     )
                     await pinger_message.edit(embed=checking)
                 except nextcord.errors.NotFound:
-                    print(Style.NORMAL + Fore.RED + "[MCStatusBot] " + Fore.CYAN +
-                          f"El mensaje de estado no está configurado. Usa {config['bot_prefix']}createstatusmsg en el canal de texto.")
-                    return
+                    print("El mensaje de estado no se encontró. Creándolo nuevamente...")
+                    message_id = await ensure_status_message(channel)
+                    pinger_message = await channel.fetch_message(int(message_id))
 
+                # Actualizar el embed con el estado de cada servidor
                 for server_info in data_list["servers_to_ping"]:
                     if not server_info["is_maintenance"]:
                         try:
@@ -175,7 +226,7 @@ async def update_servers_status():
                 await send_console_status()
                 await update_presence_status()
             else:
-                print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] No se encontró el canal de estado de servidores.")
+                print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] No se encontró el canal de estado.")
         else:
             print(f"[{time.strftime('%d/%m/%y %H:%M:%S')}] No se encontró el servidor de Discord configurado.")
     else:
