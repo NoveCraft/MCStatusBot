@@ -1,7 +1,7 @@
 {
     "bot_token": "${BOT_TOKEN}",
     "bot_prefix": "ag!",
-    "is_maintenance_status": true,
+    "is_maintenance_status": false,
 
     "message_title": "AquaGods Status",
     "message_description": "_Here you can find the status of the servers._",
@@ -26,7 +26,7 @@
             "port": "25561",
             "is_bedrock": false,
             "count_on_presence": true,
-            "is_maintenance": true
+            "is_maintenance": false
         },
         {
             "server_name": "SkyBlock",
